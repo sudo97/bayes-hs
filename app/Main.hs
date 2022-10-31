@@ -3,15 +3,22 @@
 module Main where
 
 import qualified Data.Text.IO as TIO
+import Control.Monad
+import qualified Data.Text as T
 import qualified WordMaps
 
-testcases :: [String]
-testcases = ["First.txt", "Second.txt"]
+testcases :: [(T.Text, String)]
+testcases = [("first", "First.txt"), ("second", "Second.txt")]
+
+readAndInsert :: WordMaps.SubjTree -> (T.Text, FilePath) -> IO WordMaps.SubjTree
+readAndInsert tree (subjName, file) = do
+  content <- TIO.readFile file 
+  pure $ WordMaps.insertSubj subjName content tree
 
 main :: IO ()
 main = do
-  [first, second] <- mapM TIO.readFile testcases
-  let subj = WordMaps.insertSubj "second" second $ WordMaps.insertSubj "first" first WordMaps.empty
+  subj <- foldM readAndInsert mempty testcases
+
   putStr "mom to first "
   print $ WordMaps.calcProbability "mom" "first" subj
   putStr "mom to second "
@@ -20,3 +27,7 @@ main = do
   print $ WordMaps.calcProbability "money" "first" subj
   putStr "money to second "
   print $ WordMaps.calcProbability "money" "second" subj
+  putStr "rich to first "
+  print $ WordMaps.calcProbability "rich" "first" subj
+  putStr "rich to second "
+  print $ WordMaps.calcProbability "rich" "second" subj
