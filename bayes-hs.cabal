@@ -59,7 +59,9 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  WordMaps
+    exposed-modules:
+        WordMaps
+        DBWork
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -72,6 +74,8 @@ library
     build-depends:    
         base ^>=4.16.3.0, 
         containers,
+        sqlite-simple,
+        transformers,
         text
 
     -- Directories containing source files.
@@ -98,6 +102,8 @@ executable bayes-hs
     build-depends:
         base ^>=4.16.3.0,
         bayes-hs,
+        sqlite-simple,
+        transformers,
         text
 
     -- Directories containing source files.

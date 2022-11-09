@@ -1,0 +1,17 @@
+PRAGMA foreign_keys=1;
+BEGIN TRANSACTION;
+CREATE TABLE subjects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  qty INT NOT NULL
+);
+CREATE TABLE word_subj (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  word TEXT NOT NULL,
+  subj_id INT,
+  qty INT NOT NULL,
+  FOREIGN KEY(subj_id) REFERENCES subjects(id)
+);
+DELETE FROM sqlite_sequence;
+INSERT INTO sqlite_sequence VALUES('subjects',2);
+COMMIT;
