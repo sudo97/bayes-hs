@@ -1,4 +1,4 @@
-module DBWork (openDb, query_, query, execute, changes, DBWork, Only (..), transaction) where
+module DBWork (withDefault, openDb, query_, query, execute, changes, DBWork, Only (..), transaction) where
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT (runReaderT), ask)
@@ -32,3 +32,7 @@ transaction :: DBWork a -> DBWork a
 transaction action = do
   conn <- ask
   liftIO $ S.withTransaction conn $ runReaderT action conn
+
+withDefault :: a -> [[Maybe a]] -> a
+withDefault _ [[Just x]] = x
+withDefault def _ = def

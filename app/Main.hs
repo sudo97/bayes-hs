@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -65,10 +64,6 @@ calcBayes subj word =
           p_a = subject_count / total_articles_count
           p_b = total_word_count / total_words
        in if total_word_count == 0 then 0 else (p_ba * p_a) / p_b
-
-withDefault :: a -> [[Maybe a]] -> a
-withDefault _ [[Just x]] = x
-withDefault def _ = def
 
 totalWordCountInSubject :: T.Text -> T.Text -> DBWork Double
 totalWordCountInSubject subj word =
