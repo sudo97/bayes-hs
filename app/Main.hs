@@ -40,10 +40,10 @@ insertOrUpdateWordSubj subjId (word, qty) = do
 
 insertArticle :: T.Text -> T.Text -> DBWork ()
 insertArticle subj t = transaction $ do
-  getSubjId subj >>= \case
-    Just subjId -> traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ t
-    Nothing -> pure () -- incrementSubject creates it if doesn't find one
   incrementSubject subj
+  -- will always pattern-match as incrementSubject always does insert, if unable to update
+  (Just subjId) <- getSubjId subj
+  traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ t
 
 main :: IO ()
 main = openDb "bayes.db" $ do
