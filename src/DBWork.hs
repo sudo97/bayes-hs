@@ -26,7 +26,7 @@ changes :: DBWork Int
 changes = ask >>= liftIO . S.changes
 
 openDb :: String -> DBWork () -> IO ()
-openDb s work = S.open s >>= runReaderT work
+openDb s work = S.open s >>= \con -> runReaderT work con *> S.close con
 
 transaction :: DBWork a -> DBWork a
 transaction action = do
