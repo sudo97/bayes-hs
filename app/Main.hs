@@ -3,6 +3,7 @@
 
 module Main where
 
+import BayesServer
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import DBWork
@@ -45,9 +46,7 @@ insertArticle subj t = transaction $ do
   traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ t
 
 main :: IO ()
-main = openDb "bayes.db" $ do
-  calcBayes "first" "mom" >>= liftIO . print
-  calcBayes "second" "mom" >>= liftIO . print
+main = mainRun
 
 calcBayes :: T.Text -> T.Text -> DBWork Double
 calcBayes subj word =

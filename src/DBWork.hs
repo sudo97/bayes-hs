@@ -25,8 +25,8 @@ execute q arg = do
 changes :: DBWork Int
 changes = ask >>= liftIO . S.changes
 
-openDb :: String -> DBWork () -> IO ()
-openDb s work = S.open s >>= \con -> runReaderT work con *> S.close con
+openDb :: String -> DBWork a -> IO a
+openDb s work = S.withConnection s $ \con -> runReaderT work con
 
 transaction :: DBWork a -> DBWork a
 transaction action = do
