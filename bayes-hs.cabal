@@ -96,7 +96,7 @@ executable bayes-hs
     -- Import common warning flags.
     import:           warnings
 
-    ghc-options: -threaded
+    ghc-options: -threaded -O2
 
     -- .hs or .lhs file containing the Main module.
     main-is:          Main.hs
