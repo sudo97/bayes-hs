@@ -14,8 +14,9 @@ insertWords wrds p = foldl' go p (prettyWords wrds)
   where
     go :: SubjProbs -> T.Text -> SubjProbs
     go pr txt = M.insertWith (+) txt 1 pr
-    prettyWords :: T.Text -> [T.Text]
-    prettyWords = filter (/= "") . fmap (T.filter isLower . T.toLower) . T.words
+
+prettyWords :: T.Text -> [T.Text]
+prettyWords = filter (/= "") . fmap (T.filter isLower . T.toLower) . T.words
 
 buildSubjProbs :: T.Text -> [(T.Text, Int)]
 buildSubjProbs wrds = M.toList $ insertWords wrds mempty

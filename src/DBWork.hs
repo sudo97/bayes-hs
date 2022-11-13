@@ -1,5 +1,18 @@
-module DBWork (withDefault, openDb, query_, query, execute, changes, DBWork, Only (..), transaction) where
+module DBWork
+  ( ifNoChanges,
+    withDefault,
+    openDb,
+    query_,
+    query,
+    execute,
+    changes,
+    DBWork,
+    Only (..),
+    transaction,
+  )
+where
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT (runReaderT), ask)
 import Database.SQLite.Simple (Only (..))
@@ -36,3 +49,8 @@ transaction action = do
 withDefault :: a -> [[Maybe a]] -> a
 withDefault _ [[Just x]] = x
 withDefault def _ = def
+
+ifNoChanges :: DBWork () -> DBWork ()
+ifNoChanges action = do
+  number <- changes
+  when (number == 0) action

@@ -1,49 +1,112 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module BayesServer (mainRun) where
 
--- import Data.Data (Proxy)
--- import Data.Text
--- import Data.Time (UTCTime)
-
--- import Network.HTTP.Media ((//), (/:))
-
 import Control.Monad.IO.Class
 import DBWork
-import Data.Aeson
+import Data.Aeson (FromJSON)
+import Data.Foldable (traverse_)
 import Data.Functor (($>))
-import Data.List (intercalate)
 import qualified Data.Text as T
-import Database.SQLite.Simple.Types
+import GHC.Float (int2Double)
 import GHC.Generics (Generic)
-import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
+import WordMaps (buildSubjProbs, prettyWords)
+
+data Article = Article {articleText :: T.Text, articleSubjects :: [T.Text]} deriving (Show, Generic)
+
+instance FromJSON Article
 
 type BayesAPI =
   "calculate" :> ReqBody '[JSON] T.Text :> Get '[JSON] [(T.Text, Double)]
-    :<|> "update" :> ReqBody '[JSON] (T.Text, T.Text) :> Post '[JSON] NoContent
+    :<|> "update" :> ReqBody '[JSON] Article :> Post '[JSON] NoContent
     :<|> "subjects" :> Get '[JSON] [(T.Text, Int)]
+
+allSubjects :: DBWork [(T.Text, Int)]
+allSubjects = query_ "SELECT name, qty FROM subjects"
 
 bayesServer :: FilePath -> Server BayesAPI
 bayesServer dbfile = calculate :<|> update :<|> subjects
   where
-    calculate _text = pure []
-    update (_, _) = pure NoContent
-    subjects =
-      liftIO . openDb dbfile $ do
-        query_ "SELECT name, qty FROM subjects"
+    calculate text =
+      liftIO . openDb dbfile $
+        allSubjects >>= traverse (\(subj, _) -> (subj,) . sum <$> traverse (calcBayes subj) (prettyWords text))
+    update (Article {articleText = text, articleSubjects = subjs}) = (liftIO . openDb dbfile $ traverse (`insertArticle` text) subjs) $> NoContent
+    subjects = liftIO . openDb dbfile $ allSubjects
 
 mainRun :: IO ()
 mainRun = do
   let dbfile = "bayes.db"
   run 8081 . serve @BayesAPI Proxy . bayesServer $ dbfile
+
+calcBayes :: T.Text -> T.Text -> DBWork Double
+calcBayes subj word =
+  go
+    <$> totalWordCountInSubject subj word
+    <*> totalWordsInSubject subj
+    <*> subjectCount subj
+    <*> totalArticlesCount
+    <*> totalWordCount word
+    <*> totalWords
+  where
+    go total_word_count_in_subject total_words_in_subject subject_count total_articles_count total_word_count total_words =
+      let p_ba = total_word_count_in_subject / total_words_in_subject
+          p_a = subject_count / total_articles_count
+          p_b = total_word_count / total_words
+       in if total_word_count == 0 then 0 else (p_ba * p_a) / p_b
+
+totalWordCountInSubject :: T.Text -> T.Text -> DBWork Double
+totalWordCountInSubject subj word =
+  int2Double . withDefault 0
+    <$> query "SELECT word_subj.qty from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE subjects.name = ? AND word_subj.word = ?" (subj, word)
+
+totalWordsInSubject :: T.Text -> DBWork Double
+totalWordsInSubject subj =
+  int2Double . withDefault 0
+    <$> query "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE subjects.name = ?" (Only subj)
+
+subjectCount :: T.Text -> DBWork Double
+subjectCount subj =
+  int2Double . withDefault 0
+    <$> query "SELECT qty FROM subjects WHERE name = ?" (Only subj)
+
+totalArticlesCount :: DBWork Double
+totalArticlesCount = int2Double . withDefault 0 <$> query_ "SELECT SUM(qty) FROM subjects"
+
+totalWordCount :: T.Text -> DBWork Double
+totalWordCount word = int2Double . withDefault 0 <$> query "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE word_subj.word = ?" (Only word)
+
+totalWords :: DBWork Double
+totalWords = int2Double . withDefault 0 <$> query_ "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id"
+
+insertArticle :: T.Text -> T.Text -> DBWork ()
+insertArticle subj t = transaction $ do
+  incrementSubject subj
+  -- will always pattern-match as incrementSubject always does insert, if unable to update
+  (Just subjId) <- getSubjId subj
+  traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ t
+
+incrementSubject :: T.Text -> DBWork ()
+incrementSubject subj = do
+  execute "UPDATE subjects SET qty = qty + 1 WHERE name = ?" $ Only subj
+  ifNoChanges $ execute "INSERT INTO subjects (name, qty) values (?, 1)" $ Only subj
+
+getSubjId :: T.Text -> DBWork (Maybe Int)
+getSubjId subj = do
+  [[val]] <- query "SELECT id FROM subjects where name = ?" (Only subj)
+  pure val
+
+insertOrUpdateWordSubj :: Int -> (T.Text, Int) -> DBWork ()
+insertOrUpdateWordSubj subjId (word, qty) = do
+  execute "UPDATE word_subj SET qty = qty + ? WHERE word = ? AND subj_id = ?" (qty, word, subjId)
+  ifNoChanges $ execute "INSERT INTO word_subj (word, subj_id, qty) values (?, ?, ?)" (word, subjId, qty)
