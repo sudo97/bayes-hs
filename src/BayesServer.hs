@@ -35,14 +35,18 @@ type BayesAPI =
 allSubjects :: DBWork [(T.Text, Int)]
 allSubjects = query_ "SELECT name, qty FROM subjects"
 
+withDb :: MonadIO m => String -> DBWork a -> m a
+withDb dbFile = liftIO . openDb dbFile
+
 bayesServer :: FilePath -> Server BayesAPI
 bayesServer dbfile = calculate :<|> update :<|> subjects
   where
     calculate text =
-      liftIO . openDb dbfile $
+      withDb dbfile $
         allSubjects >>= traverse (\(subj, _) -> (subj,) . sum <$> traverse (calcBayes subj) (prettyWords text))
-    update (Article {articleText = text, articleSubjects = subjs}) = (liftIO . openDb dbfile $ traverse (`insertArticle` text) subjs) $> NoContent
-    subjects = liftIO . openDb dbfile $ allSubjects
+    update (Article text subjs) =
+      withDb dbfile (traverse (`insertArticle` text) subjs) $> NoContent
+    subjects = withDb dbfile allSubjects
 
 mainRun :: IO ()
 mainRun = do
