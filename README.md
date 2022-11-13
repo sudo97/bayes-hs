@@ -1,4 +1,5 @@
 # Bayesian classifier
+
 This is quite naїve implementation of the bayesian classifier for the articles. I made it as an exercise to work on servant, and sqlite-simple. I liked it pretty much. The idea is that it could live as a tiny microservice. Who knows
 
 ## What can be done to make it better.
