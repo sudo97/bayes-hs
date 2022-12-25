@@ -1,11 +1,11 @@
 module DBWork
   ( ifNoChanges,
     withDefault,
-    openDb,
     query_,
     query,
     execute,
     changes,
+    runDb,
     DBWork,
     Only (..),
     transaction,
@@ -38,8 +38,8 @@ execute q arg = do
 changes :: DBWork Int
 changes = ask >>= liftIO . S.changes
 
-openDb :: String -> DBWork a -> IO a
-openDb s = S.withConnection s . runReaderT
+runDb :: DBWork a -> S.Connection -> IO a
+runDb = runReaderT
 
 transaction :: DBWork a -> DBWork a
 transaction action = do

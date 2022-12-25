@@ -11,16 +11,38 @@
 
 module BayesServer (mainRun) where
 
-import Control.Monad.IO.Class
 import DBWork
+  ( DBWork,
+    Only (Only),
+    execute,
+    ifNoChanges,
+    query,
+    query_,
+    transaction,
+    withDefault,
+  )
 import Data.Aeson (FromJSON)
 import Data.Foldable (traverse_)
 import Data.Functor (($>))
+import Data.Pool (Pool)
 import qualified Data.Text as T
+import qualified Database.SQLite.Simple as S
+import DbPool (initConnectionPool, withDbPool)
 import GHC.Float (int2Double)
 import GHC.Generics (Generic)
-import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp (run)
 import Servant
+  ( Get,
+    JSON,
+    NoContent (..),
+    Post,
+    Proxy (Proxy),
+    ReqBody,
+    Server,
+    serve,
+    type (:<|>) (..),
+    type (:>),
+  )
 import WordMaps (buildSubjProbs, prettyWords)
 
 data Article = Article {articleText :: T.Text, articleSubjects :: [T.Text]} deriving (Show, Generic)
@@ -35,23 +57,20 @@ type BayesAPI =
 allSubjects :: DBWork [(T.Text, Int)]
 allSubjects = query_ "SELECT name, qty FROM subjects"
 
-withDb :: MonadIO m => String -> DBWork a -> m a
-withDb dbFile = liftIO . openDb dbFile
-
-bayesServer :: FilePath -> Server BayesAPI
-bayesServer dbfile = calculate :<|> update :<|> subjects
+bayesServer :: Pool S.Connection -> Server BayesAPI
+bayesServer dbPool = calculate :<|> update :<|> subjects
   where
     calculate text =
-      withDb dbfile $
+      withDbPool dbPool $
         allSubjects >>= traverse (\(subj, _) -> (subj,) . sum <$> traverse (calcBayes subj) (prettyWords text))
     update (Article text subjs) =
-      withDb dbfile (traverse (`insertArticle` text) subjs) $> NoContent
-    subjects = withDb dbfile allSubjects
+      withDbPool dbPool $ traverse (`insertArticle` text) subjs $> NoContent
+    subjects = withDbPool dbPool allSubjects
 
 mainRun :: IO ()
 mainRun = do
-  let dbfile = "bayes.db"
-  run 8081 . serve @BayesAPI Proxy . bayesServer $ dbfile
+  putStrLn "Starting a server..."
+  initConnectionPool "bayes.db" >>= run 8081 . serve @BayesAPI Proxy . bayesServer
 
 calcBayes :: T.Text -> T.Text -> DBWork Double
 calcBayes subj word =
@@ -94,20 +113,15 @@ totalWords :: DBWork Double
 totalWords = int2Double . withDefault 0 <$> query_ "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id"
 
 insertArticle :: T.Text -> T.Text -> DBWork ()
-insertArticle subj t = transaction $ do
-  incrementSubject subj
-  -- will always pattern-match as incrementSubject always does insert, if unable to update
-  (Just subjId) <- getSubjId subj
-  traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ t
+insertArticle subj text = transaction $ do
+  subjId <- incrementSubject subj
+  traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ text
 
-incrementSubject :: T.Text -> DBWork ()
+incrementSubject :: T.Text -> DBWork Int
 incrementSubject subj = do
   execute "UPDATE subjects SET qty = qty + 1 WHERE name = ?" $ Only subj
   ifNoChanges $ execute "INSERT INTO subjects (name, qty) values (?, 1)" $ Only subj
-
-getSubjId :: T.Text -> DBWork (Maybe Int)
-getSubjId subj = do
-  [[val]] <- query "SELECT id FROM subjects where name = ?" (Only subj)
+  [[val]] <- query "SELECT id FROM subjects where name = ? " (Only subj)
   pure val
 
 insertOrUpdateWordSubj :: Int -> (T.Text, Int) -> DBWork ()

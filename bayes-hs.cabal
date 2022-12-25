@@ -63,6 +63,7 @@ library
         WordMaps
         DBWork
         BayesServer
+        DbPool
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -84,8 +85,8 @@ library
         servant-server,
         wai,
         warp,
-        servant-docs
-
+        servant-docs,
+        resource-pool
     -- Directories containing source files.
     hs-source-dirs:   src
 
