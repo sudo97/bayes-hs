@@ -1,4 +1,4 @@
-module DbPool where
+module DBPool where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import DBWork (DBWork, runDb)

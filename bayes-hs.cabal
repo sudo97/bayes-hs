@@ -63,7 +63,8 @@ library
         WordMaps
         DBWork
         BayesServer
-        DbPool
+        DBPool
+        DBQueries
 
     -- Modules included in this library but not exported.
     -- other-modules:
