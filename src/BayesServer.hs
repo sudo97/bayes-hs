@@ -105,13 +105,19 @@ subjectCount subj =
     <$> query "SELECT qty FROM subjects WHERE name = ?" (Only subj)
 
 totalArticlesCount :: DBWork Double
-totalArticlesCount = int2Double . withDefault 0 <$> query_ "SELECT SUM(qty) FROM subjects"
+totalArticlesCount =
+  int2Double . withDefault 0
+    <$> query_ "SELECT SUM(qty) FROM subjects"
 
 totalWordCount :: T.Text -> DBWork Double
-totalWordCount word = int2Double . withDefault 0 <$> query "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE word_subj.word = ?" (Only word)
+totalWordCount word =
+  int2Double . withDefault 0
+    <$> query "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE word_subj.word = ?" (Only word)
 
 totalWords :: DBWork Double
-totalWords = int2Double . withDefault 0 <$> query_ "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id"
+totalWords =
+  int2Double . withDefault 0
+    <$> query_ "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id"
 
 insertArticle :: T.Text -> T.Text -> DBWork ()
 insertArticle text subj = transaction $ do
