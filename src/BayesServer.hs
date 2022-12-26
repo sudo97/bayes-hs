@@ -65,7 +65,7 @@ bayesServer dbPool = calculate :<|> update :<|> subjects
        in withDbPool dbPool $
             allSubjects >>= traverse (\(subj, _) -> (subj,) . sum <$> traverse (calcBayes subj) prettified)
     update (Article text subjs) =
-      withDbPool dbPool $ traverse (`insertArticle` text) subjs $> NoContent
+      withDbPool dbPool $ traverse (insertArticle text) subjs $> NoContent
     subjects = withDbPool dbPool allSubjects
 
 mainRun :: IO ()
@@ -92,12 +92,12 @@ calcBayes subj word =
 totalWordCountInSubject :: T.Text -> T.Text -> DBWork Double
 totalWordCountInSubject subj word =
   int2Double . withDefault 0
-    <$> query "SELECT word_subj.qty from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE subjects.name = ? AND word_subj.word = ?" (subj, word)
+    <$> query "SELECT word_subj.qty FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE subjects.name = ? AND word_subj.word = ?" (subj, word)
 
 totalWordsInSubject :: T.Text -> DBWork Double
 totalWordsInSubject subj =
   int2Double . withDefault 0
-    <$> query "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE subjects.name = ?" (Only subj)
+    <$> query "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE subjects.name = ?" (Only subj)
 
 subjectCount :: T.Text -> DBWork Double
 subjectCount subj =
@@ -108,13 +108,13 @@ totalArticlesCount :: DBWork Double
 totalArticlesCount = int2Double . withDefault 0 <$> query_ "SELECT SUM(qty) FROM subjects"
 
 totalWordCount :: T.Text -> DBWork Double
-totalWordCount word = int2Double . withDefault 0 <$> query "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE word_subj.word = ?" (Only word)
+totalWordCount word = int2Double . withDefault 0 <$> query "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id WHERE word_subj.word = ?" (Only word)
 
 totalWords :: DBWork Double
-totalWords = int2Double . withDefault 0 <$> query_ "SELECT SUM(word_subj.qty) from word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id"
+totalWords = int2Double . withDefault 0 <$> query_ "SELECT SUM(word_subj.qty) FROM word_subj INNER JOIN subjects ON subjects.id = word_subj.subj_id"
 
 insertArticle :: T.Text -> T.Text -> DBWork ()
-insertArticle subj text = transaction $ do
+insertArticle text subj = transaction $ do
   subjId <- incrementSubject subj
   traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ text
 
