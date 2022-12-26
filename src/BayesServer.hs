@@ -61,8 +61,9 @@ bayesServer :: Pool S.Connection -> Server BayesAPI
 bayesServer dbPool = calculate :<|> update :<|> subjects
   where
     calculate text =
-      withDbPool dbPool $
-        allSubjects >>= traverse (\(subj, _) -> (subj,) . sum <$> traverse (calcBayes subj) (prettyWords text))
+      let prettified = prettyWords text
+       in withDbPool dbPool $
+            allSubjects >>= traverse (\(subj, _) -> (subj,) . sum <$> traverse (calcBayes subj) prettified)
     update (Article text subjs) =
       withDbPool dbPool $ traverse (`insertArticle` text) subjs $> NoContent
     subjects = withDbPool dbPool allSubjects
