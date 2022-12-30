@@ -1,4 +1,4 @@
-## GET /calculate
+## POST /calculate
 
 ### Request:
 

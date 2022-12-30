@@ -88,7 +88,9 @@ library
         wai,
         warp,
         servant-docs,
-        resource-pool
+        resource-pool,
+        wreq,
+        lens
     -- Directories containing source files.
     hs-source-dirs:   src
 

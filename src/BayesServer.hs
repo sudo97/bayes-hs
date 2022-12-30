@@ -38,6 +38,7 @@ import Servant
     Handler,
     JSON,
     NoContent (..),
+    Post,
     PostNoContent,
     Proxy (Proxy),
     ReqBody,
@@ -83,7 +84,7 @@ instance FromJSON TotalSubjCount
 instance ToJSON TotalSubjCount
 
 type BayesAPI =
-  "calculate" :> ReqBody '[JSON] ArticleText :> Get '[JSON] Probabilities
+  "calculate" :> ReqBody '[JSON] ArticleText :> Post '[JSON] Probabilities
     :<|> "update" :> ReqBody '[JSON] Article :> PostNoContent
     :<|> "subjects" :> Get '[JSON] TotalSubjCount
 
