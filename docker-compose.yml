@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  bayes-hs:
+    build: ./
+    command: echo http://scrap-servise:1207/ > .normalizerUrl && cabal run bayes-hs -- +RTS -N
+    depends_on:
+      - scrap-servise
+    ports:
+      - 8081:8081
+
+  scrap-servise:
+    image: normalizer    
+    depends_on:
+      - redis
+    ports:
+      - 1207:1207
+      
+  redis:
+    restart: always
+    image: redis:alpine
+    ports:
+      - 6379:6379
+    command: redis-server --requirepass verysecretpassword
