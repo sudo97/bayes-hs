@@ -3,11 +3,13 @@ version: '3.8'
 services:
   bayes-hs:
     build: ./
-    command: echo http://scrap-servise:1207/ > .normalizerUrl && cabal run bayes-hs -- +RTS -N
+    command: cabal run bayes-hs -- +RTS -N
     depends_on:
       - scrap-servise
     ports:
       - 8081:8081
+    environment:
+      - NORMALIZER_URL=http://scrap-servise:1207/
 
   scrap-servise:
     image: normalizer    
@@ -15,6 +17,8 @@ services:
       - redis
     ports:
       - 1207:1207
+    env_file:
+      - "../ua-word-normalizer/.env"
       
   redis:
     restart: always

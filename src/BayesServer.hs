@@ -28,7 +28,9 @@ import DBQueries (allSubjects, calcBayes, insertArticle)
 import Data.Aeson (toJSON)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Functor (($>))
+import Data.List (sortOn)
 import qualified Data.Map as M
+import Data.Ord (Down (..))
 import Data.Pool (Pool)
 import qualified Data.Text as T
 import qualified Database.SQLite.Simple as S
@@ -49,6 +51,7 @@ import Servant
     type (:<|>) (..),
     type (:>),
   )
+import System.Environment (getEnv)
 import Types
 import WordMaps (prettyWords)
 
@@ -81,7 +84,7 @@ bayesServer normalizerUrl dbPool = calculate :<|> update :<|> subjects
         forM allSubj $ \subj -> do
           probs <- traverse (calcBayes subj) prettified
           pure (SubjectTitle subj, sum probs)
-      pure . Probabilities . M.fromList $ lst
+      pure . Probabilities . take 20 . sortOn (Down . snd) $ lst
     update :: Article -> Handler NoContent
     update article = do
       prettified <- prettifyText normalizerUrl $ article ^. articleTextLens . articleInnerText
@@ -96,5 +99,5 @@ bayesServer normalizerUrl dbPool = calculate :<|> update :<|> subjects
 mainRun :: IO ()
 mainRun = do
   putStrLn "Starting a server..."
-  bayesServer <$> readFile ".normalizerUrl" <*> initConnectionPool "bayes.db"
+  bayesServer <$> getEnv "NORMALIZER_URL" <*> initConnectionPool "bayes.db"
     >>= run 8081 . serve @BayesAPI Proxy

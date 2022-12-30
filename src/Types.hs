@@ -44,7 +44,7 @@ instance FromJSON Article
 
 instance ToJSON Article
 
-newtype Probabilities = Probabilities (M.Map SubjectTitle Double) deriving (Show, Generic)
+newtype Probabilities = Probabilities [(SubjectTitle, Double)] deriving (Show, Generic)
 
 instance FromJSON Probabilities
 

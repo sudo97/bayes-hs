@@ -23,10 +23,10 @@
     - `application/json;charset=utf-8`
     - `application/json`
 
-- Probabilities for each subject (`application/json;charset=utf-8`, `application/json`):
+- Top 20 subjects with the highest probability to match (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-[["subj1",0.3],["subj2",0.8]]
+[["subj1",0.8],["subj2",0.3]]
 ```
 
 ## GET /subjects

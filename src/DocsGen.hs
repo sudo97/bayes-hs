@@ -26,7 +26,7 @@ instance ToSample ArticleText where
 
 instance ToSample Probabilities where
   toSamples :: Proxy Probabilities -> [(T.Text, Probabilities)]
-  toSamples _ = [("Probabilities for each subject", Probabilities . M.fromList $ [("subj1", 0.3), ("subj2", 0.8)])]
+  toSamples _ = [("Top 20 subjects with the highest probability to match", Probabilities [("subj1", 0.8), ("subj2", 0.3)])]
 
 instance ToSample SubjectTitle where
   toSamples :: Proxy SubjectTitle -> [(T.Text, SubjectTitle)]
