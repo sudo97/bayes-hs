@@ -9,8 +9,8 @@ import qualified Data.Text as T
 
 type SubjProbs = M.Map T.Text Int
 
-insertWords :: T.Text -> SubjProbs -> SubjProbs
-insertWords wrds p = foldl' go p (prettyWords wrds)
+insertWords :: [T.Text] -> SubjProbs -> SubjProbs
+insertWords wrds p = foldl' go p wrds
   where
     go :: SubjProbs -> T.Text -> SubjProbs
     go pr txt = M.insertWith (+) txt 1 pr
@@ -18,5 +18,5 @@ insertWords wrds p = foldl' go p (prettyWords wrds)
 prettyWords :: T.Text -> [T.Text]
 prettyWords = filter (/= "") . fmap (T.filter isLower . T.toLower) . T.words
 
-buildSubjProbs :: T.Text -> [(T.Text, Int)]
+buildSubjProbs :: [T.Text] -> [(T.Text, Int)]
 buildSubjProbs wrds = M.toList $ insertWords wrds mempty

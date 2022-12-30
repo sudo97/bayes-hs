@@ -1,12 +1,9 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -21,18 +18,23 @@ module BayesServer
   )
 where
 
+import Control.Applicative ((<|>))
+import Control.Exception (try)
+import Control.Lens
+import Control.Monad (forM)
+import Control.Monad.IO.Class (MonadIO (..))
 import DBPool (initConnectionPool, withDbPool)
 import DBQueries (allSubjects, calcBayes, insertArticle)
-import Data.Aeson (FromJSON, FromJSONKey, ToJSON, ToJSONKey)
+import Data.Aeson (toJSON)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Functor (($>))
 import qualified Data.Map as M
 import Data.Pool (Pool)
-import Data.String (IsString)
 import qualified Data.Text as T
 import qualified Database.SQLite.Simple as S
-import GHC.Generics (Generic)
+import Network.HTTP.Client (HttpException (..))
 import Network.Wai.Handler.Warp (run)
+import Network.Wreq (asJSON, post, responseBody)
 import Servant
   ( Get,
     Handler,
@@ -47,65 +49,52 @@ import Servant
     type (:<|>) (..),
     type (:>),
   )
+import Types
 import WordMaps (prettyWords)
-
-newtype ArticleText = ArticleText T.Text deriving (Show, Generic, IsString)
-
-instance FromJSON ArticleText
-
-instance ToJSON ArticleText
-
-newtype SubjectTitle = SubjectTitle T.Text deriving (Show, Generic, IsString, Eq, Ord)
-
-instance FromJSON SubjectTitle
-
-instance FromJSONKey SubjectTitle
-
-instance ToJSONKey SubjectTitle
-
-instance ToJSON SubjectTitle
-
-data Article = Article {articleText :: ArticleText, articleSubjects :: [SubjectTitle]} deriving (Show, Generic)
-
-instance FromJSON Article
-
-instance ToJSON Article
-
-newtype Probabilities = Probabilities (M.Map SubjectTitle Double) deriving (Show, Generic)
-
-instance FromJSON Probabilities
-
-instance ToJSON Probabilities
-
-newtype TotalSubjCount = TotalSubjCount (M.Map SubjectTitle Int) deriving (Show, Generic)
-
-instance FromJSON TotalSubjCount
-
-instance ToJSON TotalSubjCount
 
 type BayesAPI =
   "calculate" :> ReqBody '[JSON] ArticleText :> Post '[JSON] Probabilities
     :<|> "update" :> ReqBody '[JSON] Article :> PostNoContent
     :<|> "subjects" :> Get '[JSON] TotalSubjCount
 
-bayesServer :: Pool S.Connection -> Server BayesAPI
-bayesServer dbPool = calculate :<|> update :<|> subjects
+fetchFromNormalizer :: String -> [T.Text] -> IO [T.Text]
+fetchFromNormalizer address wrds = do
+  result <- try @HttpException $ post address (toJSON wrds) >>= asJSON <&> (^. responseBody)
+  case result of
+    Left _ -> fail "Network error"
+    Right r -> pure r
+
+prettifyText :: MonadIO io => String -> T.Text -> io [T.Text]
+prettifyText address text =
+  let wrds = prettyWords text
+   in liftIO $ fetchFromNormalizer address wrds <|> pure wrds
+
+bayesServer :: String -> Pool S.Connection -> Server BayesAPI
+bayesServer normalizerUrl dbPool = calculate :<|> update :<|> subjects
   where
+    withDb = withDbPool dbPool
     calculate :: ArticleText -> Handler Probabilities
-    calculate (ArticleText text) =
-      let prettified = prettyWords text
-       in Probabilities . M.fromList
-            <$> withDbPool
-              dbPool
-              ( allSubjects >>= traverse (\(subj, _) -> (SubjectTitle subj,) . sum <$> traverse (calcBayes subj) prettified)
-              )
-    update (Article (ArticleText text) subjs) =
-      let subjNames = (\(SubjectTitle t) -> t) <$> subjs
-       in withDbPool dbPool $ traverse (insertArticle text) subjNames $> NoContent
+    calculate article = do
+      prettified <- prettifyText normalizerUrl $ article ^. articleInnerText
+      lst <- withDb $ do
+        allSubj <- fmap fst <$> allSubjects
+        forM allSubj $ \subj -> do
+          probs <- traverse (calcBayes subj) prettified
+          pure (SubjectTitle subj, sum probs)
+      pure . Probabilities . M.fromList $ lst
+    update :: Article -> Handler NoContent
+    update article = do
+      prettified <- prettifyText normalizerUrl $ article ^. articleTextLens . articleInnerText
+      withDb $
+        traverse
+          (insertArticle prettified)
+          (article ^. articleSubjectsLens <&> (^. subjectInnerTitle))
+          $> NoContent
     subjects :: Handler TotalSubjCount
-    subjects = withDbPool dbPool $ TotalSubjCount . M.fromList . fmap (first SubjectTitle) <$> allSubjects
+    subjects = withDb $ TotalSubjCount . M.fromList . fmap (first SubjectTitle) <$> allSubjects
 
 mainRun :: IO ()
 mainRun = do
   putStrLn "Starting a server..."
-  initConnectionPool "bayes.db" >>= run 8081 . serve @BayesAPI Proxy . bayesServer
+  bayesServer <$> readFile ".normalizerUrl" <*> initConnectionPool "bayes.db"
+    >>= run 8081 . serve @BayesAPI Proxy

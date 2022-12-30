@@ -20,7 +20,7 @@ import WordMaps (buildSubjProbs)
 allSubjects :: DBWork [(T.Text, Int)]
 allSubjects = query_ "SELECT name, qty FROM subjects"
 
-insertArticle :: T.Text -> T.Text -> DBWork ()
+insertArticle :: [T.Text] -> T.Text -> DBWork ()
 insertArticle text subj = transaction $ do
   subjId <- incrementSubject
   traverse_ (insertOrUpdateWordSubj subjId) . buildSubjProbs $ text
